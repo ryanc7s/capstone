@@ -1,0 +1,286 @@
+---
+title: "Investigating the relationship between Retail Sales Activity in Australia, The Rate of Inflation & The Target Interest Rate."
+author: "Ryan Chand"
+date: "2023-09-25"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(dplyr)
+library(forcats)
+library(lubridate)
+library(knitr)
+library(tidyverse)
+library(stats)
+```
+
+
+All raw data used in this case study was obtained via the Reserve Bank of Australia (RBA) refer to [RBA Historical Data](https://www.rba.gov.au/statistics/historical-data.html)
+
+This markdown file outlines the step-by-step process of obtaining, cleaning, mutating, visualising and performing statistical functions with the data for the purpose of the Google Data Analytics Professional Capstone Case Study.
+
+Baseline expectation:
+
+
+* We should expect to see an inverse relationship between retail sales activity and the rate of inflation, given that higher inflation outcomes lead to higher interest rates which have negative implications for household spending.
+
+* We should expect to see a positive relationship between the rate of inflation and the target rate of interest, as higher inflation would lead to tighter monetary policy.
+  
+
+#### Step 1: Import CSVs from working directory and store within dataframe list
+
+``` {r df list}
+  csv_directory <- "/Users/ryan/Documents/RStudio/Retail Sales Case Study"
+  csv_files <- list.files(csv_directory, pattern = ".csv", full.names = TRUE)  
+  dataframes_list <- list()
+```
+
+Create a loop to read all the csv files stored in the csv files folder into the list
+
+``` {r read csv files}
+for (csv_file in csv_files) {
+  df <- read.csv(csv_file)
+  dataframes_list[[csv_file]] <- df
+}
+
+```
+
+Now that all CSV's within the directory have been read into the list, store them separately as their own dataframes to clean them separately.
+``` {r store into dataframes}
+df1 <- dataframes_list[[1]]
+df2 <- dataframes_list[[2]]
+df3 <- dataframes_list[[3]]
+df4 <- dataframes_list[[4]]
+
+```
+
+
+#### Step 2 - Data cleaning
+
+The first row in the CSVs currently contain descriptions of units and measurement frequencies, we want to replace this and set the these to the column titles (currently in row 2); use the colnames function to drop row 1.
+
+``` {r drop first row}
+
+colnames(df1) <- df1[1,]
+df1 <- df1[-1,]
+
+colnames(df2) <- df2[1,]
+df2 <- df2[-1,]
+
+colnames(df3) <- df3[1,]
+df3 <- df3[-1,]
+
+```
+
+Upon checking the new header row, DF3 does not have a title for the year column, use colnames function to input title in column 1 as follows:
+
+``` {r insert column name into df3}
+colnames(df3)[1] <- "Year"
+
+```
+
+Check the format of the Year column in each dataframe
+
+``` {r check formats, eval=FALSE}
+class(df1$Year)
+class(df2$Year)
+class(df3$Year)
+class(df4$Year)
+```
+
+Currently each date column is stored as character, for later visualization / statistical tests will neeed to be reformatted as date. 
+
+To avoid issues in grouping will append '15' as the day for each of the dates in the columns when reformatting to DD-MM-YYYY:
+
+```{r append 15 and format as date}
+
+df1$Year <- as.Date(paste0("15-", df1$Year), format = "%d-%b-%Y")
+df2$Year <- as.Date(paste0("15-", df2$Year), format = "%d-%b-%Y")
+df3$Year <- as.Date(paste0("15-", df3$Year), format = "%d-%b-%Y")
+df4$Year <- as.Date(paste0("15-", df4$Year), format = "%d-%b-%Y")
+
+```
+
+
+For the purpose of statistical testing, the year 2000 will be the cutoff for the historical data period for reasons of maintaining data that contains more relevant and recent economic policy regimes (i.e. going back to the 1980s would result in observations which include 18% interest rates and double digit inflation, which wouldn't be an accurate representation of the current macroeconomic environment).
+
+Before creating a subset of the dataframes, they must be stored in a consistent date format as one of the following: 
+
+* "%Y-%m-%d", 
+* "%d-%b-%Y", 
+* "%d/%m/%Y", 
+* "%m/%d/%Y"
+
+To ensure every single row within the Year column is stored in one of these formats, use a loop:
+
+```{r use successful format loop to check dates}
+date_formats <- c("%Y-%m-%d", "%d-%b-%Y", "%d/%m/%Y", "%m/%d/%Y")
+
+# Create a vector to store each "successful format" instance
+successful_format <- NULL
+
+# Loop through the date formats and attempt to parse the dates
+for (format in date_formats) {
+  parsed_dates <- try(strptime(df1$Year, format), silent = TRUE)
+  if (!inherits(parsed_dates, "try-error")) {
+    successful_format <- format
+    break
+  }
+}
+
+# Print the successful date format
+if (!is.null(successful_format)) { #any format that has passed the test, i.e. is not null
+  cat("The current format in the 'Year' column is:", successful_format, "\n")
+} else {
+  cat("Unable to determine the format of the 'Year' column.\n") #for error "null" reads
+}
+```
+
+The above loop confirms all rows are formatted correctly, move on to creating the subset dataframes for the year 2000 onwards.
+
+Store DF1 (CPI data) into its own subset from row 313 onwards and clean column names which contain special characters (these cannot be used in a group or ggplot), and store the percentage change values as numeric so they can be summarised using mathematical functions:
+
+```{r create subset for df1}
+cpi_df1_test <- df1[313:nrow(df1), ] #The subset dataframe will contain data from rows 313 onwards
+
+#Clean column names
+colnames(cpi_df1_test)[4] <- "CPI chg Year End" #Renaming the columns which contain special characters
+colnames(cpi_df1_test)[14] <- "CPI chg Quarterly"
+cpi_df1_test$`CPI chg Year End` <- as.numeric(cpi_df1_test$`CPI chg Year End`) #CPI chg Year End cannot be summarised by mean in chr format, reformatted to numeric
+```
+
+Repeating the process for the other dataframes with the exception of DF2 lending data which only begins at 2019. For the purpose of the statistical test this dataframe will be excluded in order to maintain a consistent time series across the datasets.
+
+```{r subsets for df3 andf df4}
+#Creating the subsets for DF3 and DF4
+activity_indicators_df3 <- df3[422:nrow(df3),]
+monetary_policy_data <- df4[368:nrow(df4),]
+
+#Rename columns that currently contain special characters
+colnames(activity_indicators_df3)[2] <- "retail_sales_allcurrent_industries_thsnds"
+colnames(activity_indicators_df3)[4] <- "retail_sales_allcurrent_industries_yrend_pcntchg"
+colnames(activity_indicators_df3)[5] <- "private_dwelling_approvals_thsnds"
+
+#convert following columns to numeric in order to perform mathematical fucntions
+activity_indicators_df3$retail_sales_allcurrent_industries_thsnds <- as.numeric(activity_indicators_df3$retail_sales_allcurrent_industries_thsnds)
+activity_indicators_df3$retail_sales_allcurrent_industries_yrend_pcntchg <-as.numeric(activity_indicators_df3$retail_sales_allcurrent_industries_yrend_pcntchg)
+activity_indicators_df3$private_dwelling_approvals_thsnds <- as.numeric(activity_indicators_df3$private_dwelling_approvals_thsnds)
+
+colnames(monetary_policy_data)[2] <- "cashratetarget_monthlyavg"
+colnames(monetary_policy_data)[14] <- "tnotes_1mthrate_monthlyavg"
+colnames(monetary_policy_data)[15] <- "tnotes_3mthrate_monthlyavg"
+colnames(monetary_policy_data)[16] <- "tnotes_6mthrate_monthlyavg"
+
+monetary_policy_data$cashratetarget_monthlyavg <- as.numeric(monetary_policy_data$cashratetarget_monthlyavg)
+monetary_policy_data$tnotes_1mthrate_monthlyavg <- as.numeric(monetary_policy_data$tnotes_1mthrate_monthlyavg)
+monetary_policy_data$tnotes_3mthrate_monthlyavg <- as.numeric(monetary_policy_data$tnotes_3mthrate_monthlyavg)
+monetary_policy_data$tnotes_6mthrate_monthlyavg <- as.numeric(monetary_policy_data$tnotes_6mthrate_monthlyavg)
+
+```
+
+
+```{r group and summarise data}
+avg_cpi_df <- cpi_df1_test %>% 
+  mutate(Year = year(ymd(Year))) %>% #Informs current format as YMD and mutates 
+  group_by(`Year`) %>% #can then group by Year
+  summarise(average_yearly_CPI = mean(`CPI chg Year End`, na.rm = TRUE)) #na.rm used to drop null values, summarising by average CPI for the year
+
+monetary_policy_summary <- monetary_policy_data %>% 
+  mutate(Year = year(ymd(Year))) %>% 
+  group_by(`Year`) %>% 
+  summarise(average_cashratetarget = mean(`cashratetarget_monthlyavg`, na.rm = TRUE), average_1mtnoterate = mean(`tnotes_1mthrate_monthlyavg`, na.rm = TRUE), average_3mtnoterate = mean(`tnotes_3mthrate_monthlyavg`, na.rm = TRUE), average_6mtnoterate = mean(`tnotes_6mthrate_monthlyavg`, na.rm = TRUE))
+
+retail_activity <- activity_indicators_df3 %>% 
+  mutate(Year = year(ymd(Year))) %>% 
+  group_by(`Year`) %>% 
+  summarise(average_retail_sales_allcurrent_industries_thsnds = mean(`retail_sales_allcurrent_industries_thsnds`, na.rm = TRUE), average_private_dwelling_approvals = mean(`private_dwelling_approvals_thsnds`, na.rm = TRUE), retailsales_yrendpcchange = mean(`retail_sales_allcurrent_industries_yrend_pcntchg`, na.rm = TRUE))
+
+
+```
+
+
+#### Step 3: Graph cleaned data
+
+
+```{r plot data}
+ggplot() + 
+  geom_line(data = avg_cpi_df, mapping = aes(x = Year, y = average_yearly_CPI, color = 'CPI %')) + 
+  geom_line(data = monetary_policy_summary, mapping = aes(x = Year, y = average_cashratetarget, color = 'Official Cash Rate %')) +
+  geom_line(data = retail_activity, mapping = aes(x = Year, y = retailsales_yrendpcchange, color = 'Retail Sales % Change')) +
+  theme(
+  plot.background = element_rect(fill = "white"),
+  panel.background = element_rect(fill = "white"),
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  plot.title = element_text(color = "black"),      # Change title text color
+    axis.title.x = element_text(color = "black"),   # Change x-axis label text color
+    axis.title.y = element_text(color = "black")
+  )+
+  labs (title = "Relationship between Retail Sales, \nInterest Rates, and CPI", y = "Percentage (%)")
+```
+
+
+From the vizualisation we can see a clear positive linear relationship between CPI and Interest Rates, as expected, when inflation rises we would expect to see tightening in monetary policy i.e. higher target interest rates. 
+
+There is no clear relationship between retail sales activity and the other two variables, a multiple linear regression can be applied to check the statistical relationship. 
+
+
+#### Step 4: Statistical Test
+
+
+Hypothesis Statement:
+
+* H0: Percentage change in Retail Sales attributable to Inflation and Target Interest Rates is zero.
+* Ha: Percentage change in Retail Sales attributable to Inflation and Target Interest Rates different to zero.
+
+Before we can proceed, the dataframes will need to be merged by year (the common identifier) in order to get the primary variables in a single dataset, this is because the lm function used for the statistical test only accepts one data. Merging the data will require creating two new dataframes as the merge function only accepts two arguments in a single statement.
+
+```{r merging data}
+total_economic_data <- merge(avg_cpi_df, retail_activity, by = "Year", all = TRUE)
+combined_economic_data <- merge(total_economic_data, monetary_policy_summary, by = "Year", all=TRUE)
+```
+
+Next, use the lm function (stats package required) to run a multi regression with retail sales activity as the dependent variable.
+
+```{r perform statistical test}
+model <- lm(retailsales_yrendpcchange ~ average_cashratetarget + average_yearly_CPI , data = combined_economic_data)
+summary(model)
+```
+
+Based on the regression output, we cannot reject the null hypothesis due to the high p-value (exceeds both 5% and 10% levels of significant) and the low R-Squared values (implying a lack of correlation). Therefore, based on the current dataset there would be no statistically significant relationship between retail sales activity, inflation and interest rates.
+
+However, taking the coefficient outputs at face value we observe that:
+
+* Retail sales and The Target Interest Rate (Official Cash Rate) have a negative linear relationship (which would confirm the baseline expectation)
+* Retail sales and the rate of inflation have a positive linear relationship (could hold given that high inflation outcomes can lead to wage-inflation which temporarily increases spending)
+* Overall given the low p-value and the low t-stat for Target Interest Rate these are just observations and hold no statistical significance. 
+
+
+Looking at the model futher, and as noted in the prior data vizualisation - there is a strong positive relationship between Inflation and the Rate of Interest, in a multiple linear regression this presents the issue of multicollinearity whereby two or more of the independent variables in a model are correlated, which could lead to an indepdendent variable having a high t-stat (as seen with Inflation) but an overall low model p-value. Essentially if the independent variables are highly correlated then it becomes difficult to attribute the impact of each independent variable to the dependent variable.
+
+Possible solutions for multicollinearity:
+
+* Drop one of the independent variables, and re-run the model.
+* Standardization techniques, i.e. penalizing the addition of new independent variables added which have large coefficients. 
+* Principle Components Analysis (PCA) - Reduce dimensionality of data.
+
+Given that this is a beginner level walkthrough, the first method is the simplest alternative, therefore, the model can be re-run using one of each of the independent variables:
+
+```{r multicollinarity adjustment 1 dropping off cash rate target}
+model <- lm(retailsales_yrendpcchange ~ average_yearly_CPI , data = combined_economic_data)
+summary(model)
+```
+
+The output shows the model is still insignificant at the 5% level however could be significant at the 10% level, a t-stat of 1.929 also indicates a significant relationship. However, a low R-Squared of .1447 implies a low correlation.
+
+
+```{r multicollinarity adjustment 2 dropping off CPI}
+model <- lm(retailsales_yrendpcchange ~ average_cashratetarget , data = combined_economic_data)
+summary(model)
+```
+
+No evidence for a statistically significant relationship. 
