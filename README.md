@@ -1,2 +1,2 @@
 # capstone
-repository for financial data capstone case study.
+repository used for Google Data Analytics capstone case study.
