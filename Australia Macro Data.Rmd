@@ -19,17 +19,17 @@ library(stats)
 ```
 
 
-All raw data used in this case study was obtained via the Reserve Bank of Australia (RBA) refer to [RBA Historical Data](https://www.rba.gov.au/statistics/historical-data.html)
+All raw data used in this case study was obtained via the Reserve Bank of Australia (RBA) refer to: [RBA Historical Data](https://www.rba.gov.au/statistics/historical-data.html)
 
-This markdown file outlines the step-by-step process of obtaining, cleaning, mutating, visualising and performing statistical functions with the data for the purpose of the Google Data Analytics Professional Capstone Case Study.
+This markdown file outlines the step-by-step process of obtaining, cleaning, transforming, visualising and performing statistical functions with the data for the purpose of the Google Data Analytics Professional Capstone Case Study Final Assessment.
 
-Baseline expectation:
+Establishing baseline expectations for case study:
 
+*1. We should expect to see a positive relationship between the rate of inflation and the target rate of interest, as higher inflation would lead to tighter monetary policy.
 
-* We should expect to see an inverse relationship between retail sales activity and the rate of inflation, given that higher inflation outcomes lead to higher interest rates which have negative implications for household spending.
-
-* We should expect to see a positive relationship between the rate of inflation and the target rate of interest, as higher inflation would lead to tighter monetary policy.
+*2. We should expect to see an inverse relationship between retail sales activity and the rate of inflation, given that higher inflation outcomes lead to higher interest rates which have negative implications for household spending.
   
+
 
 #### Step 1: Import CSVs from working directory and store within dataframe list
 
@@ -50,6 +50,7 @@ for (csv_file in csv_files) {
 ```
 
 Now that all CSV's within the directory have been read into the list, store them separately as their own dataframes to clean them separately.
+
 ``` {r store into dataframes}
 df1 <- dataframes_list[[1]]
 df2 <- dataframes_list[[2]]
@@ -59,9 +60,9 @@ df4 <- dataframes_list[[4]]
 ```
 
 
-#### Step 2 - Data cleaning
+#### Step 2 - Clean data
 
-The first row in the CSVs currently contain descriptions of units and measurement frequencies, we want to replace this and set the these to the column titles (currently in row 2); use the colnames function to drop row 1.
+The first row in the CSVs contain descriptions of units and measurement frequencies. Replace this, and set the these to the column titles (currently in row 2) -> Use the colnames function to drop row 1.
 
 ``` {r drop first row}
 
@@ -76,7 +77,7 @@ df3 <- df3[-1,]
 
 ```
 
-Upon checking the new header row, DF3 does not have a title for the year column, use colnames function to input title in column 1 as follows:
+Checking the new header row, DF3 does not have a title for the year column, use colnames function to input title in column 1 as follows:
 
 ``` {r insert column name into df3}
 colnames(df3)[1] <- "Year"
@@ -92,9 +93,7 @@ class(df3$Year)
 class(df4$Year)
 ```
 
-Currently each date column is stored as character, for later visualization / statistical tests will neeed to be reformatted as date. 
-
-To avoid issues in grouping will append '15' as the day for each of the dates in the columns when reformatting to DD-MM-YYYY:
+Currently each date column is stored as in character format, for statistical tests  and visualization functions, these will need to be reformatted as dates. Additionally, to avoid issues in grouping data, append '15' as the day for each of the dates (for consistency) in the columns when reformatting to DD-MM-YYYY:
 
 ```{r append 15 and format as date}
 
@@ -106,7 +105,7 @@ df4$Year <- as.Date(paste0("15-", df4$Year), format = "%d-%b-%Y")
 ```
 
 
-For the purpose of statistical testing, the year 2000 will be the cutoff for the historical data period for reasons of maintaining data that contains more relevant and recent economic policy regimes (i.e. going back to the 1980s would result in observations which include 18% interest rates and double digit inflation, which wouldn't be an accurate representation of the current macroeconomic environment).
+For the purpose of statistical testing, the year 2000 will be the cutoff for the historical data period for reasons of maintaining data that contains more relevant and recent economic policy regimes (i.e. assume for this test using RBA data from the 1980s would result in observations which include 18% interest rates and double digit inflation, which isn't an accurate representation of the current macroeconomic environment).
 
 Before creating a subset of the dataframes, they must be stored in a consistent date format as one of the following: 
 
@@ -115,7 +114,7 @@ Before creating a subset of the dataframes, they must be stored in a consistent 
 * "%d/%m/%Y", 
 * "%m/%d/%Y"
 
-To ensure every single row within the Year column is stored in one of these formats, use a loop:
+To ensure every row within the Year column is stored in one of these formats, use a loop:
 
 ```{r use successful format loop to check dates}
 date_formats <- c("%Y-%m-%d", "%d-%b-%Y", "%d/%m/%Y", "%m/%d/%Y")
@@ -140,9 +139,14 @@ if (!is.null(successful_format)) { #any format that has passed the test, i.e. is
 }
 ```
 
-The above loop confirms all rows are formatted correctly, move on to creating the subset dataframes for the year 2000 onwards.
+The above loop confirms all rows are formatted correctly. 
 
-Store DF1 (CPI data) into its own subset from row 313 onwards and clean column names which contain special characters (these cannot be used in a group or ggplot), and store the percentage change values as numeric so they can be summarised using mathematical functions:
+
+
+
+**Create the subset dataframes for the year 2000 onwards:**
+
+Store DF1 (CPI data) into its own subset from row 313 onwards (i.e. all rows prior to 313 for CPI data are prior to 2000) and clean column names which contain special characters (as these cannot be used in a group function or ggplot), and store the percentage change values as numeric so they can be summarized using mathematical functions:
 
 ```{r create subset for df1}
 cpi_df1_test <- df1[313:nrow(df1), ] #The subset dataframe will contain data from rows 313 onwards
@@ -186,7 +190,7 @@ monetary_policy_data$tnotes_6mthrate_monthlyavg <- as.numeric(monetary_policy_da
 ```{r group and summarise data}
 avg_cpi_df <- cpi_df1_test %>% 
   mutate(Year = year(ymd(Year))) %>% #Informs current format as YMD and mutates 
-  group_by(`Year`) %>% #can then group by Year
+  group_by(`Year`) %>% #Group by Year
   summarise(average_yearly_CPI = mean(`CPI chg Year End`, na.rm = TRUE)) #na.rm used to drop null values, summarising by average CPI for the year
 
 monetary_policy_summary <- monetary_policy_data %>% 
@@ -224,9 +228,12 @@ ggplot() +
 ```
 
 
-From the vizualisation we can see a clear positive linear relationship between CPI and Interest Rates, as expected, when inflation rises we would expect to see tightening in monetary policy i.e. higher target interest rates. 
+Based on the graph: 
 
-There is no clear relationship between retail sales activity and the other two variables, a multiple linear regression can be applied to check the statistical relationship. 
+* Positive linear relationship between CPI and Interest Rates, 
+* Confirming the baseline expectation established; when inflation rises we observe tightening in monetary policy i.e. higher target interest rates. 
+
+No clear relationship between retail sales activity and the other two variables can be determined, a multiple linear regression can be applied to check the statistical relationship. 
 
 
 #### Step 4: Statistical Test
@@ -237,35 +244,35 @@ Hypothesis Statement:
 * H0: Percentage change in Retail Sales attributable to Inflation and Target Interest Rates is zero.
 * Ha: Percentage change in Retail Sales attributable to Inflation and Target Interest Rates different to zero.
 
-Before we can proceed, the dataframes will need to be merged by year (the common identifier) in order to get the primary variables in a single dataset, this is because the lm function used for the statistical test only accepts one data. Merging the data will require creating two new dataframes as the merge function only accepts two arguments in a single statement.
+For statistical testing, the dataframes will need to be merged by year (the common identifier) in order to get store the primary variables in a single dataset, this is because the lm function only accepts one dataframe. Further, merging the data will require creating two new dataframes as the merge function only accepts two data locations.
 
 ```{r merging data}
 total_economic_data <- merge(avg_cpi_df, retail_activity, by = "Year", all = TRUE)
 combined_economic_data <- merge(total_economic_data, monetary_policy_summary, by = "Year", all=TRUE)
 ```
 
-Next, use the lm function (stats package required) to run a multi regression with retail sales activity as the dependent variable.
+Next, use the lm function (stats package required) to run a multi-linear regression with retail sales activity as the dependent variable.
 
 ```{r perform statistical test}
 model <- lm(retailsales_yrendpcchange ~ average_cashratetarget + average_yearly_CPI , data = combined_economic_data)
 summary(model)
 ```
 
-Based on the regression output, we cannot reject the null hypothesis due to the high p-value (exceeds both 5% and 10% levels of significant) and the low R-Squared values (implying a lack of correlation). Therefore, based on the current dataset there would be no statistically significant relationship between retail sales activity, inflation and interest rates.
+Based on the regression output, we cannot reject the null hypothesis, p-value (exceeds both 5% and 10% levels of significant) and the low R-Squared values (implying a lack of correlation). Therefore, based on the current dataset; cannot determine a statistically significant relationship between retail sales activity, inflation and interest rates.
 
-However, taking the coefficient outputs at face value we observe that:
+Taking the coefficient outputs at face value (noting these are not statistically significant) we observe that:
 
-* Retail sales and The Target Interest Rate (Official Cash Rate) have a negative linear relationship (which would confirm the baseline expectation)
-* Retail sales and the rate of inflation have a positive linear relationship (could hold given that high inflation outcomes can lead to wage-inflation which temporarily increases spending)
+* Retail sales and The Target Interest Rate (Official Cash Rate) have a negative linear relationship (which would confirm baseline expectation 2)
+* Retail sales and the rate of inflation have a positive linear relationship (could be explained by: high inflation outcomes can lead to wage-inflation which temporarily increases spending)
 * Overall given the low p-value and the low t-stat for Target Interest Rate these are just observations and hold no statistical significance. 
 
 
-Looking at the model futher, and as noted in the prior data vizualisation - there is a strong positive relationship between Inflation and the Rate of Interest, in a multiple linear regression this presents the issue of multicollinearity whereby two or more of the independent variables in a model are correlated, which could lead to an indepdendent variable having a high t-stat (as seen with Inflation) but an overall low model p-value. Essentially if the independent variables are highly correlated then it becomes difficult to attribute the impact of each independent variable to the dependent variable.
+Looking at the model futher, and as noted in the prior data visualization - there is a strong positive relationship between Inflation and the Rate of Interest, in a multiple linear regression this presents the issue of multicollinearity whereby if two or more of the independent variables in a model are highly correlated, which can lead to an indepdendent variable having a high t-stat (as seen with Inflation) but an overall low model p-value. Essentially if the independent variables are highly correlated then it becomes difficult to attribute the impact of each independent variable to the dependent variable.
 
-Possible solutions for multicollinearity:
+**Possible solutions for multicollinearity:**
 
 * Drop one of the independent variables, and re-run the model.
-* Standardization techniques, i.e. penalizing the addition of new independent variables added which have large coefficients. 
+* Standardization techniques: i.e. penalizing the addition of new independent variables added which have large coefficients. 
 * Principle Components Analysis (PCA) - Reduce dimensionality of data.
 
 Given that this is a beginner level walkthrough, the first method is the simplest alternative, therefore, the model can be re-run using one of each of the independent variables:
@@ -275,7 +282,7 @@ model <- lm(retailsales_yrendpcchange ~ average_yearly_CPI , data = combined_eco
 summary(model)
 ```
 
-The output shows the model is still insignificant at the 5% level however could be significant at the 10% level, a t-stat of 1.929 also indicates a significant relationship. However, a low R-Squared of .1447 implies a low correlation.
+The output shows the model is still insignificant at the 5% level however could be significant at the 10% level, a t-stat of 1.929 also indicates a significant relationship. A low R-Squared of .1447 implies a low correlation.
 
 
 ```{r multicollinarity adjustment 2 dropping off CPI}
